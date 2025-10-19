@@ -4,12 +4,15 @@ An AI-powered tool to parse PDF bank statements from Trade Republic and extract 
 
 ## Features
 
-- PDF upload and parsing
-- AI-powered transaction extraction using AWS Bedrock
-- Structured output with ISIN, product names, quantities, amounts, and transaction types
-- Web interface for easy interaction
-- Data persistence in DynamoDB
-- Export to JSON/CSV
+- **Smart PDF Processing**: Efficient text extraction + Claude analysis
+- **AI-Powered Extraction**: Uses AWS Bedrock (Claude Haiku 4.5) for intelligent parsing
+- **Prompt Caching**: 90% cost savings on repeated calls via cached system prompts
+- **System Prompt Architecture**: Clean separation of instructions and data
+- **Structured Output**: ISIN, product names, quantities, amounts, and transaction types
+- **Web Interface**: Modern React UI for upload and viewing
+- **Data Aggregation**: Optional grouping by ISIN and transaction type
+- **Export**: Download as JSON or CSV
+- **Production Ready**: DynamoDB persistence, S3 storage, CDK infrastructure
 
 ## Architecture
 
@@ -84,16 +87,30 @@ npm start
 
 Frontend will open at `http://localhost:3000`
 
-### 3. Test It!
+### 3. Set Up DynamoDB (Optional but Recommended)
+```bash
+cd backend
+python setup_dynamodb.py eu-west-1
+```
+
+This enables:
+- Deduplication (same PDF won't be parsed twice)
+- Historical querying by ISIN
+- Fast retrieval of previously parsed PDFs
+
+### 4. Test It!
 1. Open `http://localhost:3000` in your browser
 2. Upload a Trade Republic PDF statement
 3. Click "Upload & Parse"
 4. View structured transactions and export to JSON/CSV
+5. Upload the same PDF again - it will be retrieved from cache!
 
 ## Detailed Documentation
 
-- [Development Guide](DEVELOPMENT.md) - Complete guide for local development
-- [Infrastructure README](infrastructure/README.md) - AWS deployment instructions
+- **[Architecture Overview](ARCHITECTURE.md)** - Multimodal LLM architecture with prompt caching
+- **[DynamoDB Storage](DYNAMODB.md)** - Data persistence and querying
+- **[Development Guide](DEVELOPMENT.md)** - Complete guide for local development
+- **[Infrastructure README](infrastructure/README.md)** - AWS deployment instructions
 
 ## Deployment to AWS
 

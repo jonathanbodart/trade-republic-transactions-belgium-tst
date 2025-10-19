@@ -1,13 +1,16 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+import hashlib
+import io
 import logging
 from datetime import datetime
 from typing import Optional
-import io
 
-from ..parsers import PDFParser, LLMParser
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
 from ..models import ParseResponse, Transaction
+from ..parsers import LLMParser
+from ..storage.dynamodb_service import DynamoDBService
 from ..utils import aggregate_transactions
 
 # Configure logging
@@ -20,8 +23,8 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="Trade Republic Transaction Parser",
-    description="AI-powered PDF transaction parser using AWS Bedrock",
-    version="1.0.0"
+    description="AI-powered PDF transaction parser using AWS Bedrock with multimodal input and prompt caching",
+    version="2.0.0"
 )
 
 # Configure CORS
@@ -33,9 +36,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize parsers
-pdf_parser = PDFParser()
-llm_parser = LLMParser()
+# Initialize LLM parser with prompt caching enabled
+# Using Claude 3.5 Sonnet (change to Haiku 4.5 after requesting access in AWS Bedrock)
+llm_parser = LLMParser(
+    region_name="eu-west-1",
+    model_id="eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+    enable_caching=True
+)
 
 
 @app.get("/")
@@ -55,8 +62,10 @@ async def health():
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "components": {
-            "pdf_parser": "operational",
-            "llm_parser": "operational"
+            "llm_parser": "operational",
+            "multimodal_input": "enabled",
+            "prompt_caching": "enabled",
+            "dynamodb": "enabled"
         }
     }
 
@@ -78,31 +87,64 @@ async def parse_pdf(
     """
     try:
         # Validate file type
-        if not file.filename.lower().endswith('.pdf'):
+        if not file.filename or not file.filename.lower().endswith('.pdf'):
             raise HTTPException(
                 status_code=400,
-                detail="File must be a PDF"
+                detail="File must be a PDF and must have a valid filename"
             )
 
         logger.info(f"Processing PDF: {file.filename}")
 
+
         # Read file content
         content = await file.read()
-        pdf_file = io.BytesIO(content)
 
-        # Extract text from PDF
-        logger.info("Extracting text from PDF")
-        pdf_text = pdf_parser.extract_text(pdf_file)
 
-        if not pdf_text or len(pdf_text) < 100:
+        if len(content) < 100:
             raise HTTPException(
                 status_code=400,
-                detail="Could not extract sufficient text from PDF"
+                detail="PDF file is too small or empty"
             )
 
-        # Parse transactions using LLM
-        logger.info("Parsing transactions with LLM")
-        transactions = llm_parser.parse_transactions(pdf_text)
+        # Parse transactions using LLM with multimodal input (direct PDF processing)
+        logger.info("Parsing transactions with LLM (multimodal PDF input with prompt caching)")
+
+        pdf_sha256 = hashlib.sha256(content).hexdigest()
+        logger.info(f"SHA256 of PDF: {pdf_sha256}")
+
+        # Check DynamoDB for existing parsed result
+        ddb_service = DynamoDBService()
+
+        if ddb_service.check_pdf_exists(pdf_sha256):
+            logger.info(f"PDF already processed (SHA256: {pdf_sha256}), retrieving from database")
+
+            # Retrieve transactions from DynamoDB (already converted to Transaction objects)
+            transactions = ddb_service.get_transactions_for_pdf(pdf_sha256)
+
+            # Get parsed timestamp from metadata
+            pdf_metadata = ddb_service.get_pdf_metadata(pdf_sha256)
+            parsed_at = pdf_metadata["parsedAt"] if pdf_metadata else datetime.now().isoformat()
+        else:
+            logger.info(f"Parsing new PDF with LLM")
+
+            # Parse with LLM
+            transactions = llm_parser.parse_transactions(content)
+            parsed_at = datetime.now().isoformat()
+
+            # Store in DynamoDB
+            try:
+                ddb_service.store_pdf_with_transactions(
+                    pdf_sha256=pdf_sha256,
+                    pdf_filename=file.filename,
+                    pdf_size=len(content),
+                    transactions=transactions,
+                    parsed_at=parsed_at
+                )
+                logger.info(f"Stored PDF and transactions in DynamoDB")
+            except Exception as e:
+                logger.error(f"Failed to store in DynamoDB: {e}", exc_info=True)
+                # Don't fail the request if storage fails
+
 
         if not transactions:
             raise HTTPException(
@@ -121,7 +163,7 @@ async def parse_pdf(
             aggregated=aggregated,
             total_transactions=len(transactions),
             pdf_filename=file.filename,
-            parsed_at=datetime.now().isoformat()
+            parsed_at=parsed_at
         )
 
         logger.info(f"Successfully parsed {len(transactions)} transactions")
@@ -137,44 +179,6 @@ async def parse_pdf(
         )
 
 
-@app.post("/parse-text", response_model=ParseResponse)
-async def parse_text(
-    text: str,
-    aggregate: bool = False
-):
-    """
-    Parse transaction text directly (useful for testing)
-
-    Args:
-        text: Transaction text to parse
-        aggregate: Whether to aggregate transactions
-
-    Returns:
-        ParseResponse with transactions
-    """
-    try:
-        logger.info("Parsing transactions from text")
-
-        transactions = llm_parser.parse_transactions(text)
-
-        aggregated = None
-        if aggregate:
-            aggregated = aggregate_transactions(transactions)
-
-        return ParseResponse(
-            transactions=transactions,
-            aggregated=aggregated,
-            total_transactions=len(transactions),
-            pdf_filename="direct_text_input",
-            parsed_at=datetime.now().isoformat()
-        )
-
-    except Exception as e:
-        logger.error(f"Error parsing text: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error parsing text: {str(e)}"
-        )
 
 
 if __name__ == "__main__":

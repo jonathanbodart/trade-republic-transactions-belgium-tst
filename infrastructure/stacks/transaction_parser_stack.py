@@ -1,14 +1,9 @@
-from aws_cdk import (
-    Stack,
-    aws_lambda as _lambda,
-    aws_apigateway as apigw,
-    aws_s3 as s3,
-    aws_dynamodb as dynamodb,
-    aws_iam as iam,
-    Duration,
-    RemovalPolicy,
-    CfnOutput
-)
+from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
+from aws_cdk import aws_apigateway as apigw
+from aws_cdk import aws_dynamodb as dynamodb
+from aws_cdk import aws_iam as iam
+from aws_cdk import aws_lambda as _lambda
+from aws_cdk import aws_s3 as s3
 from constructs import Construct
 
 
@@ -37,11 +32,11 @@ class TransactionParserStack(Stack):
             self, "TransactionsTable",
             table_name="transaction-parser-transactions",
             partition_key=dynamodb.Attribute(
-                name="id",
+                name="pk",
                 type=dynamodb.AttributeType.STRING
             ),
             sort_key=dynamodb.Attribute(
-                name="parsed_at",
+                name="sk",
                 type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -88,36 +83,32 @@ class TransactionParserStack(Stack):
                     "bedrock:InvokeModelWithResponseStream"
                 ],
                 resources=[
-                    f"arn:aws:bedrock:{self.region}::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0"
+                    f"arn:aws:bedrock:{self.region}::foundation-model/eu.anthropic.claude-haiku-4-5-20251001-v1:0"
                 ]
             )
         )
 
         # Lambda Layer for dependencies
-        dependencies_layer = _lambda.LayerVersion(
-            self, "DependenciesLayer",
-            code=_lambda.Code.from_asset("../backend"),
-            compatible_runtimes=[_lambda.Runtime.PYTHON_3_12],
-            description="Python dependencies for transaction parser"
-        )
 
         # Lambda Function for PDF parsing
-        parser_lambda = _lambda.Function(
-            self, "ParserFunction",
-            function_name="transaction-parser",
-            runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="src.api.main.handler",
-            code=_lambda.Code.from_asset("../backend"),
-            role=lambda_role,
-            timeout=Duration.seconds(300),  # 5 minutes for LLM processing
-            memory_size=1024,
-            environment={
-                "PDF_BUCKET": pdf_bucket.bucket_name,
-                "TRANSACTIONS_TABLE": transactions_table.table_name,
-                "AWS_REGION_NAME": self.region
-            },
-            layers=[dependencies_layer]
-        )
+        # parser_lambda = _lambda.Function(
+            #     self, "ParserFunction",
+            #     function_name="transaction-parser",
+            #     runtime=_lambda.Runtime.PYTHON_3_12,
+            #     handler="src.api.main.handler",
+            #     code=_lambda.Code.from_asset("../backend"),
+            #     role=lambda_role,
+            #     timeout=Duration.seconds(300),  # 5 minutes for LLM processing
+            #     memory_size=1024,
+            #     environment={
+            #         "PDF_BUCKET": pdf_bucket.bucket_name,
+            #         "TRANSACTIONS_TABLE": transactions_table.table_name,
+            #         "AWS_REGION_NAME": self.region
+            #     },
+            #     layers=[dependencies_layer]
+            # )
+
+            # 
 
         # API Gateway
         api = apigw.RestApi(
@@ -132,14 +123,14 @@ class TransactionParserStack(Stack):
         )
 
         # Lambda integration
-        parser_integration = apigw.LambdaIntegration(parser_lambda)
+        # parser_integration = apigw.LambdaIntegration(parser_lambda)
 
         # API Resources
-        parse_resource = api.root.add_resource("parse")
-        parse_resource.add_method("POST", parser_integration)
+        # parse_resource = api.root.add_resource("parse")
+        # parse_resource.add_method("POST", parser_integration)
 
-        health_resource = api.root.add_resource("health")
-        health_resource.add_method("GET", parser_integration)
+        # health_resource = api.root.add_resource("health")
+        # health_resource.add_method("GET", parser_integration)
 
         # CloudFront distribution for frontend (optional - can be added later)
         # For now, frontend can be hosted on S3 or served locally
