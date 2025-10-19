@@ -1,13 +1,7 @@
-from .transaction import (
-    Transaction,
-    AggregatedTransaction,
-    ParseRequest,
-    ParseResponse
-)
+from .transaction import AggregatedTransaction, ParseResponse, Transaction
 
 __all__ = [
     "Transaction",
     "AggregatedTransaction",
-    "ParseRequest",
     "ParseResponse"
 ]

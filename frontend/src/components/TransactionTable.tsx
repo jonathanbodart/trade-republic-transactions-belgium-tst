@@ -1,5 +1,5 @@
 import React from 'react';
-import { Transaction, AggregatedTransaction, ParseResponse } from '../types/transaction';
+import { ParseResponse } from '../types/transaction';
 import './TransactionTable.css';
 
 interface TransactionTableProps {
@@ -20,19 +20,16 @@ const TransactionTable: React.FC<TransactionTableProps> = ({ data }) => {
 
   const exportToCSV = () => {
     const headers = ['Date', 'ISIN', 'Product Name', 'Quantity', 'Amount (EUR)', 'Type'];
-    const rows = data.transactions.map(t => [
+    const rows = data.transactions.map((t) => [
       t.date,
       t.isin,
       `"${t.product_name}"`,
       t.quantity,
       t.amount_euros,
-      t.transaction_type
+      t.transaction_type,
     ]);
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
+    const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
 
     const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
     const exportFileDefaultName = `transactions_${new Date().toISOString().split('T')[0]}.csv`;
@@ -62,8 +59,12 @@ const TransactionTable: React.FC<TransactionTableProps> = ({ data }) => {
         <div className="table-info">
           <h2>Parsed Transactions</h2>
           <div className="metadata">
-            <span>File: <strong>{data.pdf_filename}</strong></span>
-            <span>Total: <strong>{data.total_transactions}</strong> transactions</span>
+            <span>
+              File: <strong>{data.pdf_filename}</strong>
+            </span>
+            <span>
+              Total: <strong>{data.total_transactions}</strong> transactions
+            </span>
             <span>Parsed: {new Date(data.parsed_at).toLocaleString()}</span>
           </div>
         </div>
@@ -99,9 +100,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({ data }) => {
                   <td className="align-right">{parseFloat(txn.total_quantity).toFixed(6)}</td>
                   <td className="align-right">€{parseFloat(txn.total_amount_euros).toFixed(2)}</td>
                   <td>
-                    <span className={`type-badge ${getTypeClass(txn.transaction_type)}`}>
-                      {txn.transaction_type}
-                    </span>
+                    <span className={`type-badge ${getTypeClass(txn.transaction_type)}`}>{txn.transaction_type}</span>
                   </td>
                   <td className="align-center">{txn.transaction_count}</td>
                 </tr>
@@ -133,9 +132,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({ data }) => {
                 <td className="align-right">{parseFloat(txn.quantity).toFixed(6)}</td>
                 <td className="align-right">€{parseFloat(txn.amount_euros).toFixed(2)}</td>
                 <td>
-                  <span className={`type-badge ${getTypeClass(txn.transaction_type)}`}>
-                    {txn.transaction_type}
-                  </span>
+                  <span className={`type-badge ${getTypeClass(txn.transaction_type)}`}>{txn.transaction_type}</span>
                 </td>
               </tr>
             ))}

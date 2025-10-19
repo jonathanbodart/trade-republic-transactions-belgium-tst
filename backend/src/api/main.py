@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from ..models import ParseResponse, Transaction
 from ..parsers import LLMParser
+from ..parsers.pdf_parser import PDFParser
 from ..storage.dynamodb_service import DynamoDBService
 from ..utils import aggregate_transactions
 
@@ -19,6 +20,8 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+ddb_service = DynamoDBService()
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -110,28 +113,20 @@ async def parse_pdf(
         logger.info("Parsing transactions with LLM (multimodal PDF input with prompt caching)")
 
         pdf_sha256 = hashlib.sha256(content).hexdigest()
-        logger.info(f"SHA256 of PDF: {pdf_sha256}")
-
-        # Check DynamoDB for existing parsed result
-        ddb_service = DynamoDBService()
-
+       
         if ddb_service.check_pdf_exists(pdf_sha256):
             logger.info(f"PDF already processed (SHA256: {pdf_sha256}), retrieving from database")
 
-            # Retrieve transactions from DynamoDB (already converted to Transaction objects)
             transactions = ddb_service.get_transactions_for_pdf(pdf_sha256)
 
-            # Get parsed timestamp from metadata
             pdf_metadata = ddb_service.get_pdf_metadata(pdf_sha256)
             parsed_at = pdf_metadata["parsedAt"] if pdf_metadata else datetime.now().isoformat()
         else:
             logger.info(f"Parsing new PDF with LLM")
 
-            # Parse with LLM
             transactions = llm_parser.parse_transactions(content)
             parsed_at = datetime.now().isoformat()
 
-            # Store in DynamoDB
             try:
                 ddb_service.store_pdf_with_transactions(
                     pdf_sha256=pdf_sha256,
@@ -143,7 +138,6 @@ async def parse_pdf(
                 logger.info(f"Stored PDF and transactions in DynamoDB")
             except Exception as e:
                 logger.error(f"Failed to store in DynamoDB: {e}", exc_info=True)
-                # Don't fail the request if storage fails
 
 
         if not transactions:
@@ -152,17 +146,11 @@ async def parse_pdf(
                 detail="No transactions found in PDF"
             )
 
-        # Optionally aggregate transactions
-        aggregated = None
-        if aggregate:
-            logger.info("Aggregating transactions")
-            aggregated = aggregate_transactions(transactions)
 
         response = ParseResponse(
             transactions=transactions,
-            aggregated=aggregated,
             total_transactions=len(transactions),
-            pdf_filename=file.filename,
+            pdfFilename=file.filename,
             parsed_at=parsed_at
         )
 

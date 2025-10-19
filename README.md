@@ -105,13 +105,6 @@ This enables:
 4. View structured transactions and export to JSON/CSV
 5. Upload the same PDF again - it will be retrieved from cache!
 
-## Detailed Documentation
-
-- **[Architecture Overview](ARCHITECTURE.md)** - Multimodal LLM architecture with prompt caching
-- **[DynamoDB Storage](DYNAMODB.md)** - Data persistence and querying
-- **[Development Guide](DEVELOPMENT.md)** - Complete guide for local development
-- **[Infrastructure README](infrastructure/README.md)** - AWS deployment instructions
-
 ## Deployment to AWS
 
 ```bash

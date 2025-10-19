@@ -54,22 +54,13 @@ class AggregatedTransaction(BaseModel):
         }
 
 
-class ParseRequest(BaseModel):
-    """Request model for PDF parsing"""
 
-    aggregate: bool = Field(
-        default=False,
-        description="Whether to aggregate transactions by ISIN"
-    )
 
 
 class ParseResponse(BaseModel):
     """Response model for PDF parsing"""
 
     transactions: list[Transaction] = Field(..., description="List of parsed transactions")
-    aggregated: Optional[list[AggregatedTransaction]] = Field(
-        None, description="Aggregated transactions by ISIN (if requested)"
-    )
     total_transactions: int = Field(..., description="Total number of transactions parsed")
-    pdf_filename: str = Field(..., description="Original PDF filename")
+    pdf_filename: str = Field(..., alias='pdfFilename', description="Original PDF filename")
     parsed_at: str = Field(..., description="Timestamp when parsing occurred")

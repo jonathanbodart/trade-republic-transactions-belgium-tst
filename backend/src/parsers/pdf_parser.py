@@ -1,6 +1,8 @@
-import pdfplumber
-from typing import BinaryIO
 import logging
+from io import BytesIO
+from typing import BinaryIO
+
+import pdfplumber
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +11,7 @@ class PDFParser:
     """Extracts text content from PDF files"""
 
     @staticmethod
-    def extract_text(pdf_file: BinaryIO) -> str:
+    def extract_text(pdf_file: BytesIO) -> str:
         """
         Extract all text from a PDF file
 
@@ -42,7 +44,7 @@ class PDFParser:
             raise
 
     @staticmethod
-    def extract_tables(pdf_file: BinaryIO) -> list[list[list]]:
+    def extract_tables(pdf_file: BytesIO) -> list[list[list]]:
         """
         Extract tables from PDF if structured data is available
 
@@ -59,6 +61,9 @@ class PDFParser:
                 for page in pdf.pages:
                     tables = page.extract_tables()
                     if tables:
+                        for table in tables:
+                            logger.info(f"Extracted table with {len(table)} rows from page {page.page_number}")
+                            logger.info(f"Table preview: {table[:2]}")  # Log first 2 rows as preview
                         all_tables.extend(tables)
 
             logger.info(f"Extracted {len(all_tables)} tables from PDF")
